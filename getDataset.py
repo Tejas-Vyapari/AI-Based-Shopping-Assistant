@@ -1,94 +1,75 @@
 import pandas as pd
 import numpy as np
-from random import randrange
+from random import randint
 from collections import Counter
+from typing import List, Dict
 
 
+def get_data(history_size: int = 1000):
+    search_history = [
+        'shirt', 'watch', 'wallet', 'shoes', 'belt', 'rice', 'sugar', 'skirt',
+        'sandal', 'heals', 'handbag', 'bagpack', 'pillow', 'teddy', 'suitcase',
+        'mobiles', 'laptop', 'fridge', 'desk', 'soda', 'hat', 'bangles', 
+        'earrings', 'necklace', 'ring', 'shampoo', 'dates', 'cashew', 'juice', 
+        'lays', 'maggi', 'keyboard', 'paper', 'pen', 'pencil', 'radio', 
+        'rocket fuel', 'bulbs', 'ink', 'pajamas', 'shower', 'letters', 'books', 
+        'bottles', 'cars', 'bread', 'chain', 'bullets', 'mutton', 'cakes', 
+        'cards', 'pearls', 'rope', 'bacon', 'tomatoes', 'eggs', 'onions', 
+        'yeast', 'vegetables', 'baking powder', 'cheese', 'milk', 'handbags', 
+        'boots', 'sweaters', 'dress', 'jacket'
+    ]
 
-def getRecency(Time, item):
-	sum = 0
-	k = 0
-	for i in range(item):
-		j = i + 1
-		for j in range(item):
-			if i == j:
-				dif = item[i]-item[j]
-				sum += dif
-				k = 0
-	average = sum/k
-	return average
+    item_count = len(search_history)
+    item_ids = [randint(0, item_count - 1) for _ in range(history_size)]
+    item_names = [search_history[item_id] for item_id in item_ids]
+    timestamps = [randint(1550350815, 1550370815) for _ in range(history_size)]
 
+    # Create DataFrame
+    df = pd.DataFrame({
+        'Item': item_ids,
+        'Item_names': item_names,
+        'Time': timestamps
+    })
 
-def getData():
-	history_size = 1000
-	item = []
-	search_history = ['shirt', 'watch', 'wallet', 'shoes', 'belt', 'rice', 'sugar', 'skirt', 'sandal', 'heals', 'handbag', 'bagpack', 'pillow', 'teddy', 'suitcase', 'mobiles', 'laptop', 'fridge', 'desk', 'soda', 'hat', 'bangles', 'earrings', 'necklace', 'ring', 'shampoo', 'dates', 'cashew', 'juice', 'lays', 'maggi', 'keyboard', 'paper', 'pen', 'pencil', 'radio', 'rocket fuel', 'bulbs', 'ink', 'pajamas', 'shower', 'letters', 'books', 'bottles', 'juice', 'cars', 'bread', 'chain', 'bullets', 'mutton', 'shampoo', 'cakes', 'cards', 'pearls' , 'rope','bacon','tomatoes','sugar', 'eggs','onions','yeast','vegetables','baking powder','cheese', 'milk', 'handbags', 'boots', 'sweaters', 'dress', 'jacket'
-]
-	item_names = []
-	Time = []
-	for i in range(history_size):
-		number = randrange(1,70)
-		item.append(number)
-		item_names.append(search_history[number])
-		time = randrange(1550350815, 1550370815, 100)
-		Time.append(time)
-	#print(item)
+    df.to_csv('dataset.csv', index=False)
+    print("Generated Dataset:\n", df.head())
 
-	df = pd.DataFrame(columns=['Item', 'Item_names', 'Time'])
-	df['Item'] = item
-	df['Item_names'] = item_names
-	df['Time'] = Time
-	df.to_csv('dataset.csv', mode ='w', index=False)
-
-
-	print(df.head) 
 
 def calculate_frequency():
-	df = pd.read_csv('dataset.csv')
-	new_frequency= []
-	new_names= []
-	new_items= []
+    # Check if file exists
+    try:
+        df = pd.read_csv('dataset.csv')
+    except FileNotFoundError:
+        print("Dataset not found. Please generate it using `get_data()`.")
+        return
 
-	items = df['Item'].tolist()
-	item_names = df['Item_names'].tolist()
+    frequency = Counter(df['Item'])
+    item_list = df[['Item', 'Item_names']].drop_duplicates().set_index('Item')
+    
+    # Calculate frequency as a DataFrame
+    frequency_df = pd.DataFrame.from_dict(frequency, orient='index', columns=['Frequency'])
+    frequency_df = frequency_df.merge(item_list, left_index=True, right_index=True)
+    frequency_df = frequency_df.reset_index().rename(columns={'index': 'Item'})
 
-	item_list = dict(zip(items, item_names))
-	frequency = Counter(items)
+    recency = calculate_recency(df)
+    frequency_df['Recency'] = recency
 
-	for item in item_list:
-		new_items.append(item)
-		new_names.append(item_list[item])
-		new_frequency.append(frequency[item])
-		
-	recency = calculate_recency(item_list,items)
-	df = pd.DataFrame(columns=['Item', 'Item_names', 'Frequency'])
-	df['Item'] = new_items
-	df['Item_names'] = new_names
-	df['Frequency'] = new_frequency
-	df['Recency'] = recency
-	df.to_csv('person.csv', mode ='w', index=False)
+    frequency_df.to_csv('person.csv', index=False)
+    print("Frequency and Recency Calculation Saved:\n", frequency_df.head())
 
-def calculate_recency(item_list,items):
-	df = pd.read_csv('dataset.csv')
-	Time = df['Time'].tolist()
-	recency = []
-	l = 1	
-	for i in item_list:
-		t = Time[i]
-		l += 1
-		j = l+1 
-		m = 0
-		k = 1
-		Sum = 0
-		for j in Time:
-			if i == items[m]:
-				dif = abs(j-t)
-				Sum += dif
-				k +=1
-			m += 1
-		average = Sum/k	
-		recency.append(average)
-	return recency
 
-getData()
-calculate_frequency()
+def calculate_recency(df: pd.DataFrame) -> List[float]:
+    # Calculate recency per item
+    latest_time = df['Time'].max()
+    recency = (
+        df.groupby('Item')['Time']
+        .apply(lambda times: np.mean([latest_time - t for t in times]))
+        .tolist()
+    )
+    return recency
+
+
+if __name__ == "__main__":
+    get_data()
+    calculate_frequency()
+
