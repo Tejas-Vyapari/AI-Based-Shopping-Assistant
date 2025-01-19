@@ -10,6 +10,7 @@ from fuzzywuzzy import fuzz, process  # For fuzzy matching
 # Global variable to store user search history
 search_history = []
 
+# def search_images(query):
 
 def load_images(keyword):
     """
